@@ -1,0 +1,17 @@
+while (true) {
+    if (a) {
+        out("awd");
+        break;
+    } elif (b) {
+        out(24.4);
+        return 23;
+    } else {
+        out(false);
+        goto 46;
+    }
+}
+
+case (awda) {
+of 4: print("a");
+else: print(true);
+}
