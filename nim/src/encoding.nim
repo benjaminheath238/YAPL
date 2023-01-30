@@ -40,8 +40,8 @@ func decodeU64be*(sl, b, c, d, e, f, g, sh: uint8): uint64 =
 
 func encodeU16le*(a: uint16): array[2, uint8] =
   [
-    uint8((0x00_00_00_ff'u32 and a) shr 00),
-    uint8((0x00_00_ff_ff'u32 and a) shr 08)
+    uint8((0x00_ff'u16 and a) shr 00),
+    uint8((0xff_ff'u16 and a) shr 08)
   ]
 
 func encodeU32le*(a: uint32): array[4, uint8] =
@@ -66,8 +66,8 @@ func encodeU64le*(a: uint64): array[8, uint8] =
 
 func encodeU16be*(a: uint16): array[2, uint8] =
   [
-    uint8((0x00_00_ff_ff'u32 and a) shr 08),
-    uint8((0x00_00_00_ff'u32 and a) shr 00)
+    uint8((0xff_ff'u16 and a) shr 08),
+    uint8((0x00_ff'u16 and a) shr 00)
   ]
 
 func encodeU32be*(a: uint32): array[4, uint8] =
@@ -89,3 +89,21 @@ func encodeU64be*(a: uint64): array[8, uint8] =
     uint8((0x00_00_00_00_00_00_ff_ff'u64 and a) shr 08),
     uint8((0x00_00_00_00_00_00_00_ff'u64 and a) shr 00)
   ]
+
+func decodeU16sys*(sl, sh: uint8): uint16 =
+  when cpuEndian == littleEndian: decodeU16le(sl, sh) else: decodeU16be(sl, sh)
+
+func decodeU32sys*(sl, b, c, sh: uint8): uint32 =
+  when cpuEndian == littleEndian: decodeU32le(sl, b, c, sh) else: decodeU32be(sl, b, c, sh)
+
+func decodeU64sys*(sl, b, c, d, e, f, g, sh: uint8): uint64 =
+  when cpuEndian == littleEndian: decodeU64le(sl, b, c, d, e, f, g, sh) else: decodeU64be(sl, b, c, d, e, f, g, sh)
+
+func encodeU16sys*(a: uint16): array[2, uint8] =
+  when cpuEndian == littleEndian: encodeU16le(a) else: encodeU16be(a)
+
+func encodeU32sys*(a: uint32): array[4, uint8] =
+  when cpuEndian == littleEndian: encodeU32le(a) else: encodeU32be(a)
+
+func encodeU64sys*(a: uint64): array[8, uint8] =
+  when cpuEndian == littleEndian: encodeU64le(a) else: encodeU64be(a)

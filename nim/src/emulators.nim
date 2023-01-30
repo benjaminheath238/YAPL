@@ -5,7 +5,7 @@ import instructions
 const LOCALS_COUNT: int = 8
 const STACK_SIZE: int = 8
 
-type VersionError = CatchableError
+type VersionError* = CatchableError
 
 type Program = ref object
   bytes: seq[uint8]
@@ -30,12 +30,13 @@ type Emulator* = ref object
   stack: seq[uint64]
   sp: uint32
 
-func newEmulator*(program: seq[uint8] = newSeq[uint8](0), constants: seq[uint64] = newSeq[uint64](0)): Emulator =
+proc newEmulator*(program: seq[uint8] = newSeq[uint8](0), constants: seq[uint64] = newSeq[uint64](0)): Emulator =
   result = Emulator()
 
   result.constants = constants
 
   result.locals = newSeq[uint64](LOCALS_COUNT)
+  #result.locals = cast[seq[]](result.memory[LOCALS_OFFSET..LOCALS_OFFSET+LOCALS_COUNT]) # newSeq[uint64](LOCALS_COUNT)
 
   result.program = program
   result.ip = 0
