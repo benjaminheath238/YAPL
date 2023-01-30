@@ -1,6 +1,6 @@
 from std/parseopt import OptParser, initOptParser, next, cmdEnd, cmdArgument, cmdLongOption, cmdShortOption
 from std/terminal import styledWriteLine, resetAttributes, fgRed, fgBlue, fgYellow
-from std/os import changeFileExt, fileExists, splitFile
+from std/os import changeFileExt, fileExists, dirExists, splitFile
 from std/strutils import isEmptyOrWhitespace
 
 from encoding import encodeU32le
@@ -67,17 +67,17 @@ type Optimisation* = enum
   OPT_NON
 
 type Arguments* = ref object
-  text: string
+  text: string                  # Raw input text from shell
   
-  input*: string
-  output*: string
+  input*: string                # Input file path
+  output*: string               # Output file path
   
-  operation*: Operation
-  target*: Target
+  operation*: Operation         # The operation for the program todo
+  target*: Target               # The compilation target
 
-  optimisation: Optimisation
+  optimisation: Optimisation    # The optimisation level
 
-  valid*: bool
+  valid*: bool                  # Are the arguments valid
 
 func newArguments*(text: string): Arguments =
   result = Arguments()
@@ -119,13 +119,14 @@ proc setTarget(this: Arguments, target: Target): void =
 proc invalidate*(this: Arguments): void =
   this.valid = false
 
-proc validateInputFile(this: Arguments, usage: string, fileTypes: seq[string]): void =
+proc validateInputFile(this: Arguments, usage: string, fileTypes: openarray[string]): void =
   if not this.valid:
     return
   
   if not this.input.fileExists():
     stderr.styledWriteLine(fgRed, "Input file does not exist, use --help for usage")
     this.invalidate()
+    return
 
   if this.input.splitFile().ext notin fileTypes:
     stderr.styledWriteLine(fgRed, "Invalid input file for " & usage & ", use --help for usage")
@@ -133,6 +134,10 @@ proc validateInputFile(this: Arguments, usage: string, fileTypes: seq[string]): 
 
 proc validateOutputFile(this: Arguments, ext: string): void =
   if not this.valid:
+    return
+  
+  if this.output.dirExists():
+    this.invalidate()
     return
   
   if this.output == "":
@@ -144,10 +149,10 @@ proc validate*(this: Arguments): void =
     if not this.valid:
       stderr.styledWriteLine(fgRed, "Invalid operation, use --help for usage")
   of OP_ASSEMBLE:
-    this.validateInputFile("assembling", @[".yais"])
+    this.validateInputFile("assembling", [".yais"])
     this.validateOutputFile("yair")
   of OP_COMPILE:
-    this.validateInputFile("compiling", @[".yapl"])
+    this.validateInputFile("compiling", [".yapl"])
     case this.target:
     of TARGET_YAIR:
       this.validateOutputFile("yair")
@@ -156,9 +161,9 @@ proc validate*(this: Arguments): void =
     of TARGET_NON:
       this.target = TARGET_YAIR
   of OP_EMULATE:
-    this.validateInputFile("emulating", @[".yair"])
+    this.validateInputFile("emulating", [".yair"])
   of OP_EXECUTE:
-    this.validateInputFile("executing", @[".yair", ".yais"])
+    this.validateInputFile("executing", [".yais"])
 
   stdout.resetAttributes()
   stderr.resetAttributes()

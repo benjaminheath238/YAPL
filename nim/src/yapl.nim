@@ -38,23 +38,12 @@ when isMainModule:
 
       emulator.execute()
     of OP_EXECUTE:
-      if args.input.endsWith("yais"):
-        let assembler: Assembler = newAssembler(readFile(args.input))
+      let assembler: Assembler = newAssembler(readFile(args.input))
+      assembler.assemble()
 
-        assembler.assemble()
-
-        if assembler.errors.len() == 0:
-          let emulator: Emulator = newEmulator(assembler.program, assembler.constants)
-
-          emulator.execute()
-        else:
-          for error in assembler.errors:
-            echo error
-      elif args.input.endsWith("yair"):
-        let emulator: Emulator = newEmulator()
-
-        let input: File = open(args.input, fmRead)
-        emulator.load(input)
-        input.close()
-
+      if assembler.errors.len() == 0:
+        let emulator: Emulator = newEmulator(assembler.program, assembler.constants)
         emulator.execute()
+      else:
+        for error in assembler.errors:
+          echo error
