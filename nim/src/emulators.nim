@@ -1,36 +1,54 @@
+#################
+#    Imports    #
+#################
+
 from encoding import decodeU16le, decodeU32le, decodeU64le
 
 import instructions
 
-const LOCALS_COUNT: int = 8
-const STACK_SIZE: int = 8
+###################
+#    Constants    #
+###################
 
-type VersionError* = CatchableError
+const
+  LOCALS_COUNT: int = 8
+  STACK_SIZE: int = 8
 
-type Program = ref object
-  bytes: seq[uint8]
+#####################
+#    Definitions    #
+#####################
 
-  yairVersion: uint32
-  yaisVersion: uint32
+type
+  VersionError* = CatchableError
 
-  constants: seq[uint64]
-  constantsCount: uint16
+  Program = ref object
+    bytes: seq[uint8]
 
-  instructions: seq[uint8]
-  instructionsCount: uint16
+    yairVersion: uint32
+    yaisVersion: uint32
 
-type Emulator* = ref object
-  constants: seq[uint64]
+    constants: seq[uint64]
+    constantsCount: uint16
 
-  locals: seq[uint64]
+    instructions: seq[uint8]
+    instructionsCount: uint16
+  
+  Emulator* = ref object
+    constants: seq[uint64]
 
-  program: seq[uint8]
-  ip: uint32
+    locals: seq[uint64]
 
-  stack: seq[uint64]
-  sp: uint32
+    program: seq[uint8]
+    ip: uint32
 
-proc newEmulator*(program: seq[uint8] = newSeq[uint8](0), constants: seq[uint64] = newSeq[uint64](0)): Emulator =
+    stack: seq[uint64]
+    sp: uint32
+
+######################
+#    Constructors    #
+######################
+
+func newEmulator*(program: seq[uint8] = newSeq[uint8](0), constants: seq[uint64] = newSeq[uint64](0)): Emulator =
   result = Emulator()
 
   result.constants = constants
@@ -43,6 +61,14 @@ proc newEmulator*(program: seq[uint8] = newSeq[uint8](0), constants: seq[uint64]
 
   result.stack = newSeq[uint64](STACK_SIZE)
   result.sp = 0
+
+###################
+#    Accessors    #
+###################
+
+###########################
+#    Private Functions    #
+###########################
 
 func loadHeader(this: Emulator, program: var Program): void =
   # Decode YAIR version from little endian
@@ -92,30 +118,6 @@ func loadInstructions(this: Emulator, program: var Program): void =
   let start: int = program.bytes.len - int(program.instructionsCount * INSTRUCTION_WIDTH)
 
   program.instructions = program.bytes[start..high program.bytes]
-
-proc load*(this: Emulator, file: File): void =
-  var program: Program = Program()
-
-  let len: int64 = file.getFileSize() 
-
-  program.bytes = newSeq[uint8](len)
-
-  let read: int64 = file.readBytes(program.bytes, 0, len)
-
-  if read < len:
-    raise newException(IOError, "Failed to read file")
-
-  this.loadHeader(program)
-  this.loadConstants(program)
-  this.loadInstructions(program)
-
-  if program.yairVersion != YAIR_VERSION:
-    raise newException(VersionError, "Emulator YAIR version is " & $YAIR_VERSION & " but program version is " & $program.yairVersion)
-  elif program.yaisVersion != YAIS_VERSION:
-    raise newException(VersionError, "Emulator YAIS version is " & $YAIS_VERSION & " but program version is " & $program.yaisVersion)
-  else:
-    this.constants = program.constants
-    this.program = program.instructions
 
 func push(this: Emulator, value: uint64): void =
   this.stack[this.sp] = value
@@ -174,6 +176,34 @@ func execute(this: Emulator, opcode: uint8, opand1: uint8, opand2: uint8): void 
       this.ip = (decodeU16le(opand1, opand2) - 1) * INSTRUCTION_WIDTH
     this.drop()
   else: discard
+
+##########################
+#    Public Functions    #
+##########################
+
+proc load*(this: Emulator, file: File): void =
+  var program: Program = Program()
+
+  let len: int64 = file.getFileSize() 
+
+  program.bytes = newSeq[uint8](len)
+
+  let read: int64 = file.readBytes(program.bytes, 0, len)
+
+  if read < len:
+    raise newException(IOError, "Failed to read file")
+
+  this.loadHeader(program)
+  this.loadConstants(program)
+  this.loadInstructions(program)
+
+  if program.yairVersion != YAIR_VERSION:
+    raise newException(VersionError, "Emulator YAIR version is " & $YAIR_VERSION & " but program version is " & $program.yairVersion)
+  elif program.yaisVersion != YAIS_VERSION:
+    raise newException(VersionError, "Emulator YAIS version is " & $YAIS_VERSION & " but program version is " & $program.yaisVersion)
+  else:
+    this.constants = program.constants
+    this.program = program.instructions
 
 func execute*(this: Emulator): void =
   while this.ip + INSTRUCTION_WIDTH <= uint32(high this.program):

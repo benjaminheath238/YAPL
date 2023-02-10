@@ -1,3 +1,7 @@
+#################
+#    Imports    #
+#################
+
 from std/parseopt import OptParser, initOptParser, next, cmdEnd, cmdArgument, cmdLongOption, cmdShortOption
 from std/terminal import styledWriteLine, resetAttributes, fgRed, fgBlue, fgYellow
 from std/os import changeFileExt, fileExists, dirExists, splitFile
@@ -5,6 +9,88 @@ from std/strutils import isEmptyOrWhitespace
 
 from encoding import encodeU32le
 from instructions import YAIR_VERSION, YAIS_VERSION, YAPL_VERSION
+
+###################
+#    Constants    #
+###################
+
+#####################
+#    Definitions    #
+#####################
+
+type
+  Operation* = enum
+    OP_INVALID
+    OP_ASSEMBLE
+    OP_COMPILE
+    OP_EMULATE
+    OP_EXECUTE
+
+  Target* = enum
+    TARGET_NON
+    TARGET_YAIR
+    TARGET_YAIS
+
+  Optimisation* = enum
+    OPT_NON
+
+  Arguments* = ref object
+    text: string                  # Raw input text from shell
+
+    input*: string                # Input file path
+    output*: string               # Output file path
+
+    operation*: Operation         # The operation for the program todo
+    target*: Target               # The compilation target
+    
+    optimisation: Optimisation    # The optimisation level
+
+    valid*: bool                  # Are the arguments valid
+
+######################
+#    Constructors    #
+######################
+
+func newArguments*(text: string): Arguments =
+  result = Arguments()
+
+  result.text = text
+
+  result.input = ""
+  result.output = ""
+  
+  result.operation = OP_INVALID
+  result.target = TARGET_NON
+
+  result.optimisation = OPT_NON
+
+  result.valid = true
+
+###################
+#    Accessors    #
+###################
+
+proc setOperation(this: Arguments, operation: Operation): void =
+  if this.operation == OP_INVALID:
+    this.operation = operation
+  else:
+    stderr.styledWriteLine(fgRed, "Multiple operations, use --help for usage")
+
+proc setOutput(this: Arguments, output: string): void =
+  if this.output == "":
+    this.output = output
+  else:
+    stderr.styledWriteLine(fgRed, "Multiple output files, use --help for usage")
+
+proc setTarget(this: Arguments, target: Target): void =
+  if this.target == TARGET_NON:
+    this.target = target
+  else:
+    stderr.styledWriteLine(fgRed, "Multiple targets, use --help for usage")
+
+###########################
+#    Private Functions    #
+###########################
 
 proc version(): void =
   template ln(args: varargs[untyped]): void = stdout.styledWriteLine(args)
@@ -51,72 +137,7 @@ proc help(): void =
   stdout.resetAttributes()
   stderr.resetAttributes()
 
-type Operation* = enum
-  OP_INVALID
-  OP_ASSEMBLE
-  OP_COMPILE
-  OP_EMULATE
-  OP_EXECUTE
-
-type Target* = enum
-  TARGET_NON
-  TARGET_YAIR
-  TARGET_YAIS
-
-type Optimisation* = enum
-  OPT_NON
-
-type Arguments* = ref object
-  text: string                  # Raw input text from shell
-  
-  input*: string                # Input file path
-  output*: string               # Output file path
-  
-  operation*: Operation         # The operation for the program todo
-  target*: Target               # The compilation target
-
-  optimisation: Optimisation    # The optimisation level
-
-  valid*: bool                  # Are the arguments valid
-
-func newArguments*(text: string): Arguments =
-  result = Arguments()
-
-  result.text = text
-
-  result.input = ""
-  result.output = ""
-  
-  result.operation = OP_INVALID
-  result.target = TARGET_NON
-
-  result.optimisation = OPT_NON
-
-  result.valid = true
-
-proc summary*(this: Arguments): void =
-  stdout.resetAttributes()
-  stderr.resetAttributes()
-
-proc setOperation(this: Arguments, operation: Operation): void =
-  if this.operation == OP_INVALID:
-    this.operation = operation
-  else:
-    stderr.styledWriteLine(fgRed, "Multiple operations, use --help for usage")
-
-proc setOutput(this: Arguments, output: string): void =
-  if this.output == "":
-    this.output = output
-  else:
-    stderr.styledWriteLine(fgRed, "Multiple output files, use --help for usage")
-
-proc setTarget(this: Arguments, target: Target): void =
-  if this.target == TARGET_NON:
-    this.target = target
-  else:
-    stderr.styledWriteLine(fgRed, "Multiple targets, use --help for usage")
-
-proc invalidate*(this: Arguments): void =
+func invalidate(this: Arguments): void =
   this.valid = false
 
 proc validateInputFile(this: Arguments, usage: string, fileTypes: openarray[string]): void =
@@ -142,31 +163,6 @@ proc validateOutputFile(this: Arguments, ext: string): void =
   
   if this.output == "":
     this.output = this.input.changeFileExt(ext)
-
-proc validate*(this: Arguments): void =
-  case this.operation:
-  of OP_INVALID:
-    if not this.valid:
-      stderr.styledWriteLine(fgRed, "Invalid operation, use --help for usage")
-  of OP_ASSEMBLE:
-    this.validateInputFile("assembling", [".yais"])
-    this.validateOutputFile("yair")
-  of OP_COMPILE:
-    this.validateInputFile("compiling", [".yapl"])
-    case this.target:
-    of TARGET_YAIR:
-      this.validateOutputFile("yair")
-    of TARGET_YAIS:
-      this.validateOutputFile("yais")
-    of TARGET_NON:
-      this.target = TARGET_YAIR
-  of OP_EMULATE:
-    this.validateInputFile("emulating", [".yair"])
-  of OP_EXECUTE:
-    this.validateInputFile("executing", [".yais"])
-
-  stdout.resetAttributes()
-  stderr.resetAttributes()
 
 proc parseShort(this: Arguments, key, val: string): void =
   case key:
@@ -214,6 +210,39 @@ proc parseLong(this: Arguments, key, val: string): void =
     this.invalidate()
     stderr.styledWriteLine(fgRed, "Unrecognised option: ", key, ", use --help for usage")
     
+
+##########################
+#    Public Functions    #
+##########################
+
+proc summary*(this: Arguments): void =
+  stdout.resetAttributes()
+  stderr.resetAttributes()
+
+proc validate*(this: Arguments): void =
+  case this.operation:
+  of OP_INVALID:
+    if not this.valid:
+      stderr.styledWriteLine(fgRed, "Invalid operation, use --help for usage")
+  of OP_ASSEMBLE:
+    this.validateInputFile("assembling", [".yais"])
+    this.validateOutputFile("yair")
+  of OP_COMPILE:
+    this.validateInputFile("compiling", [".yapl"])
+    case this.target:
+    of TARGET_YAIR:
+      this.validateOutputFile("yair")
+    of TARGET_YAIS:
+      this.validateOutputFile("yais")
+    of TARGET_NON:
+      this.target = TARGET_YAIR
+  of OP_EMULATE:
+    this.validateInputFile("emulating", [".yair"])
+  of OP_EXECUTE:
+    this.validateInputFile("executing", [".yais"])
+
+  stdout.resetAttributes()
+  stderr.resetAttributes()
 
 proc parse*(this: Arguments): void =
   if this.text.isEmptyOrWhitespace():

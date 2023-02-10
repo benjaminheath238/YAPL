@@ -1,9 +1,21 @@
+#################
+#    Imports    #
+#################
+
 from std/strutils import join, endsWith
 from std/os import commandLineParams
+from std/json import `%`, pretty
+
+from cli import Arguments, newArguments, parse, validate, OP_INVALID, OP_ASSEMBLE, OP_COMPILE, OP_EMULATE, OP_EXECUTE
+
+from environments import `$`, `%`
+from tokens import `$`
+from nodes import `$`
 
 from assemblers import Assembler, newAssembler, assemble, constants, program, errors, save
 from emulators import Emulator, newEmulator, execute, load
-from cli import Arguments, newArguments, parse, validate, OP_INVALID, OP_ASSEMBLE, OP_COMPILE, OP_EMULATE, OP_EXECUTE
+from lexers import Lexer, newLexer, tokens, tokenize
+from parsers import Parser, newParser, ast, parse, env
 
 when isMainModule:
   let args: Arguments = newArguments(commandLineParams().join(" "))
@@ -28,7 +40,17 @@ when isMainModule:
         for error in assembler.errors:
           echo error
   
-    of OP_COMPILE: discard
+    of OP_COMPILE:
+      let lexer: Lexer = newLexer(readFile(args.input))
+
+      lexer.tokenize()
+
+      let parser: Parser = newParser(lexer.tokens)
+
+      parser.parse()
+
+      writeFile("lex.json", pretty(%lexer.tokens))
+      writeFile("parse.json", pretty(%parser.ast))
     of OP_EMULATE:
       let emulator: Emulator = newEmulator()
 

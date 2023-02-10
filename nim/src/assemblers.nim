@@ -1,5 +1,9 @@
+#################
+#    Imports    #
+#################
+
 from std/tables import Table, TableRef, toTable, newTable, values, contains, `[]`, `[]=`
-from std/strutils import split, splitLines, strip, isEmptyOrWhitespace
+from std/strutils import split, splitLines, strip, isEmptyOrWhitespace, toUpper
 from std/sequtils import map, filter
 from std/sugar import `=>`
 
@@ -8,47 +12,60 @@ from encoding import encodeU64le, encodeU32le, encodeU16le
 
 import instructions
 
-const COMMENT_DELIMINATOR: char = '#'
-const ADDRESS_DELIMINATOR: char = '@'
-const VARIABLE_DELIMINATOR: char = '$'
+###################
+#    Constants    #
+###################
 
-const OP_CODES: Table[string, uint8] = toTable[string, uint8]([
-  ("HALT", OP_HALT),
-  
-  ("ADD", OP_ADD),
-  ("SUB", OP_SUB),
-  ("MUL", OP_MUL),
-  ("DIV", OP_DIV),
+const
+  COMMENT_DELIMINATOR: char = '#'
+  ADDRESS_DELIMINATOR: char = '@'
+  VARIABLE_DELIMINATOR: char = '$'
 
-  ("LPUSH", OP_LPUSH),
-  ("CPUSH", OP_CPUSH),
-  ("DUP", OP_DUP),
-  ("STORE", OP_STORE),
-  ("LOAD", OP_LOAD),
+  OP_CODES: Table[string, uint8] = toTable[string, uint8]([
+    ("HALT", OP_HALT),
 
-  ("JP", OP_JP),
-  ("JPZ", OP_JPZ),
-  ("JPNZ", OP_JPNZ),
-  ("JPS", OP_JPS),
-  ("JPNS", OP_JPNS),
-])
+    ("ADD", OP_ADD),
+    ("SUB", OP_SUB),
+    ("MUL", OP_MUL),
+    ("DIV", OP_DIV),
 
-type Instruction = tuple[opcode, opand1, opand2: uint8]
-type Error = string
+    ("LPUSH", OP_LPUSH),
+    ("CPUSH", OP_CPUSH),
+    ("DUP", OP_DUP),
+    ("STORE", OP_STORE),
+    ("LOAD", OP_LOAD),
 
-type Assembler* = ref object
-  addresses: TableRef[string, uint16]
-  address: uint16
+    ("JP", OP_JP),
+    ("JPZ", OP_JPZ),
+    ("JPNZ", OP_JPNZ),
+    ("JPS", OP_JPS),
+    ("JPNS", OP_JPNS),
+  ])
 
-  variables: TableRef[string, tuple[id: uint16, value: uint64]]
-  count: uint16
+#####################
+#    Definitions    #
+#####################
 
-  program: seq[uint8]
-  
-  source: seq[string]
+type
+  Instruction = tuple[opcode, opand1, opand2: uint8]
 
-  errors: seq[Error]
-  line: uint16
+  Assembler* = ref object
+    addresses: TableRef[string, uint16]
+    address: uint16
+
+    variables: TableRef[string, tuple[id: uint16, value: uint64]]
+    count: uint16
+
+    program: seq[uint8]
+
+    source: seq[string]
+
+    errors: seq[string]
+    line: uint16
+
+######################
+#    Constructors    #
+######################
 
 func newAssembler*(source: string): Assembler =
   result = Assembler()
@@ -65,8 +82,12 @@ func newAssembler*(source: string): Assembler =
                         .map(x => x.strip())
                         .filter(x => not x.isEmptyOrWhitespace())
 
-  result.errors = newSeq[Error]()
+  result.errors = newSeq[string]()
   result.line = 1
+
+###################
+#    Accessors    #
+###################
 
 func constants*(this: Assembler): seq[uint64] =
   result = newSeq[uint64]()
@@ -74,7 +95,11 @@ func constants*(this: Assembler): seq[uint64] =
     result.add(item.value)
 
 func program*(this: Assembler): seq[uint8] = this.program
-func errors*(this: Assembler): seq[Error] = this.errors
+func errors*(this: Assembler): seq[string] = this.errors
+
+###########################
+#    Private Functions    #
+###########################
 
 proc saveHeader(this: Assembler, file: File): void =
   var bytes: seq[uint8] = newSeq[uint8]()
@@ -105,11 +130,6 @@ proc saveConstants(this: Assembler, file: File): void =
 proc saveInstructions(this: Assembler, file: File): void =
   discard file.writeBytes(this.program, 0, this.program.len)
 
-proc save*(this: Assembler, file: File): void = 
-  this.saveHeader(file)
-  this.saveConstants(file)
-  this.saveInstructions(file)
-
 func parseArguments(this: Assembler, source: string): uint16 =
   if source[0] == ADDRESS_DELIMINATOR:
     if this.addresses.contains(source[1..high source]):
@@ -127,7 +147,7 @@ func parseArguments(this: Assembler, source: string): uint16 =
     return parseU16(source)
 
 func parseInstruction(this: Assembler, source: seq[string]): Instruction =
-  if not OP_CODES.contains(source[0]):
+  if not OP_CODES.contains(source[0].toUpper()):
     this.errors.add("[" & $this.line & "]: Failed to parse opcode (" & $source[0] & ")")
     return (opcode: OP_NOOP, opand1: 0'u8, opand2: 0'u8)
 
@@ -180,6 +200,15 @@ func preprocess(this: Assembler): void =
   this.address = 0
   this.line = 1
 
+##########################
+#    Public Functions    #
+##########################
+
 func assemble*(this: Assembler): void =
   this.preprocess()
   this.process()
+
+proc save*(this: Assembler, file: File): void = 
+  this.saveHeader(file)
+  this.saveConstants(file)
+  this.saveInstructions(file)
